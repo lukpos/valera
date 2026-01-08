@@ -1,4 +1,4 @@
-name: Test Everything (All OS/Arch)
+name: Build Everything (All OS/Arch)
 
 on:
   #For caching
