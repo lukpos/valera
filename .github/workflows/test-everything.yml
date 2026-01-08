@@ -1,7 +1,12 @@
 name: Test Everything (All OS/Arch)
 
 on:
+  #For caching
   push:
+    branches:
+      - main
+      - development
+  pull_request:
   workflow_dispatch:
     inputs:
       kotlin-version:

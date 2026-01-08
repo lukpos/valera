@@ -1,0 +1,68 @@
+name: Test Everything (All OS/Arch)
+
+on:
+  #For caching
+  push:
+    branches:
+      - main
+      - development
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      kotlin-version:
+        description: "Override Kotlin version?"
+        required: false
+        default: ""
+        type: string
+      testballoon-version:
+        description: "Override TestBalloon version (full version string)?"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Common setup
+        uses: a-sit-plus/internal-workflows/.github/actions/common-setup@feature/modularTests
+        with:
+          override-cache: ${{ github.ref_name == 'development' || github.ref_name == 'main' }}
+
+      - name: Build apk
+        run: ./gradlew :androidApp:assemble
+        env:
+          ANDROID_CERT_PASSWORD: ${{ secrets.ANDROID_CERT_PASSWORD }}
+          CI: true
+
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - name: Common setup
+        uses: a-sit-plus/internal-workflows/.github/actions/common-setup@feature/modularTests
+        with:
+          xcode-version: '16.4'
+          override-cache: ${{ github.ref_name == 'development' || github.ref_name == 'main' }}
+
+      - name: Prepare files from secrets
+        run: |
+          echo "${{ secrets.APPLE_CERT_CONTENT }}" > iosApp/cert.b64
+          base64 -d -i iosApp/cert.b64 > iosApp/cert.p12
+      - name: Build iOS App
+        run: fastlane build
+        working-directory: iosApp
+        env:
+          FASTLANE_OPT_OUT_USAGE: true
+          FASTLANE_XCODE_LIST_TIMEOUT: 120
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          CI: true
+      - name: Upload logs (Build iOS App)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xcode.log
+          path: "/Users/runner/Library/Logs/gym/Valera-iosApp.log"
