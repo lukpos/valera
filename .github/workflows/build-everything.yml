@@ -41,7 +41,6 @@ jobs:
       - name: Common setup
         uses: a-sit-plus/internal-workflows/.github/actions/common-setup@feature/modularTests
         with:
-          xcode-version: '16.4'
           override-cache: ${{ github.ref_name == 'development' || github.ref_name == 'main' }}
 
       - name: Prepare files from secrets
