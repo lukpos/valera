@@ -30,7 +30,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 class UnitAttestationHelper(ENDPOINT: Flow<String>) {
-    val KS_ALIAS_WUA = "ALIAS_WUA"
+    val KS_ALIAS_WUA = Configuration.KS_ALIAS
     val ENDPOINT_UNIT = ENDPOINT.map { "$it/api/v1/unit" }
 
     val httpClient = HttpClient()
@@ -39,7 +39,6 @@ class UnitAttestationHelper(ENDPOINT: Flow<String>) {
         instanceAttestation: JwsSigned<JsonWebToken>,
         pop: JwsSigned<JsonWebToken>
     ): JwsSigned<KeyAttestationJwt> {
-        PlatformSigningProvider.deleteSigningKey(KS_ALIAS_WUA)
         val holderKey = createHolderKey(KS_ALIAS_WUA)
 
         val body = UnitAttestationRequest(

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlin.time.Clock
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.seconds
 
 class AttestationService(
@@ -66,7 +67,7 @@ class AttestationService(
     }
 
     private suspend fun requestUnitAttestation(
-        ttl: Duration = 2678400.seconds
+        ttl: Duration = 31.days
     ): JwsSigned<KeyAttestationJwt> {
         bufferedUnitAttestation.firstOrNull()?.let { buffer ->
             if ((buffer.payload.expiration)?.let { it > Clock.System.now() + ttl } == true) {

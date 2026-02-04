@@ -47,7 +47,6 @@ import kotlin.time.Duration.Companion.minutes
 class ProvisioningService(
     private val intentService: IntentService,
     private val dataStoreService: DataStoreService,
-    private val keyMaterial: KeyMaterial,
     private val holderAgent: HolderAgent,
     private val config: SettingsRepository,
     private val errorService: ErrorService,
@@ -74,7 +73,6 @@ class ProvisioningService(
         ),
         oid4vciService = WalletService(
             clientId = clientId,
-            keyMaterial = keyMaterial,
             loadUnitAttestation = { input -> attestationService.getUnitAttestation(input) }
         )
     )
@@ -148,7 +146,6 @@ class ProvisioningService(
         qrCodeContent: String
     ): CredentialOffer {
         val walletService = WalletService(
-            keyMaterial = keyMaterial,
             remoteResourceRetriever = { data ->
                 withContext(Dispatchers.IO) {
                     client.get(data.url).bodyAsText()
