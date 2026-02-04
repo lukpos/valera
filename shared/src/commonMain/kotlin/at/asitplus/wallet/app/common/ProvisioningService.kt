@@ -10,6 +10,7 @@ import at.asitplus.signum.indispensable.asn1.commonName
 import at.asitplus.signum.indispensable.josef.KeyAttestationJwt
 import at.asitplus.signum.indispensable.pki.AttributeTypeAndValue
 import at.asitplus.signum.indispensable.pki.X509Certificate
+import at.asitplus.wallet.app.common.attestation.AttestationService
 import at.asitplus.wallet.app.common.data.SettingsRepository
 import at.asitplus.wallet.lib.agent.EphemeralKeyWithSelfSignedCert
 import at.asitplus.wallet.lib.agent.HolderAgent
@@ -50,6 +51,7 @@ class ProvisioningService(
     private val holderAgent: HolderAgent,
     private val config: SettingsRepository,
     private val errorService: ErrorService,
+    private val attestationService: AttestationService,
     httpService: HttpService,
 ) {
     private val cookieStorage = PersistentCookieStorage(dataStoreService, errorService)
@@ -57,17 +59,6 @@ class ProvisioningService(
 
     private val redirectUrl = "asitplus-wallet://wallet.a-sit.at/app/callback/provisioning"
     private val clientId = "https://wallet.a-sit.at/app"
-
-    private var clientAttestationJwt = null as String?
-    suspend fun clientAttestationJwt() = clientAttestationJwt ?: BuildClientAttestationJwt(
-        SignJwt(keyMaterial, JwsHeaderCertOrJwk()),
-        clientId = clientId,
-        issuer = keyMaterial.getCertificate()?.extractSubjectCn() ?: "https://example.com",
-        lifetime = 60.minutes,
-        clientKey = keyMaterial.jsonWebKey
-    ).serialize().also {
-        clientAttestationJwt = it
-    }
 
     private val openId4VciClient = OpenId4VciClient(
         engine = HttpClient().engine,
@@ -78,8 +69,8 @@ class ProvisioningService(
             cookiesStorage = cookieStorage,
             oAuth2Client = OAuth2Client(clientId = clientId, redirectUrl = redirectUrl),
             httpClientConfig = httpService.loggingConfig,
-            loadClientAttestationJwt = { clientAttestationJwt() },
-            signClientAttestationPop = SignJwt(keyMaterial, JwsHeaderNone()),
+            getInstanceAttestation = { attestationService.getInstanceAttestation()},
+            getInstanceAttestationPop = { attestationService.getInstanceAttestationPop()}
         ),
         oid4vciService = WalletService(
             clientId = clientId,
@@ -98,7 +89,8 @@ class ProvisioningService(
                         ).getOrThrow()
                     }
                 }
-            }
+            },
+            getUnitAttestation = { ttl, type, payload -> attestationService.getUnitAttestation(ttl, type, payload) }
         )
     )
 

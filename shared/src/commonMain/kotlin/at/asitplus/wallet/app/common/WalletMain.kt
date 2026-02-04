@@ -7,6 +7,7 @@ import at.asitplus.iso.EncryptionParameters
 import at.asitplus.valera.resources.Res
 import at.asitplus.valera.resources.snackbar_update_action
 import at.asitplus.valera.resources.snackbar_update_hint
+import at.asitplus.wallet.app.common.attestation.AttestationService
 import at.asitplus.wallet.app.common.data.SettingsRepository
 import at.asitplus.wallet.app.common.dcapi.DCAPIExportService
 import at.asitplus.wallet.app.common.dcapi.data.export.CredentialRegistry
@@ -58,6 +59,7 @@ class WalletMain(
     val settingsRepository: SettingsRepository,
     val sessionService: SessionService,
     val capabilitiesService: CapabilitiesService,
+    val attestationService: AttestationService,
 ) {
     val appReady = MutableStateFlow<Boolean?>(null)
 

@@ -109,6 +109,7 @@ kotlin {
             implementation(libs.koin.compose.viewmodel)
             implementation(libs.koin.compose.viewmodel.navigation)
             implementation(libs.authcheckkit)
+            api("at.asitplus.warden:supreme-client:1.0.0-RC2")
         }
 
         commonTest.dependencies {

@@ -22,7 +22,11 @@ class WalletConfig(
 ) : SettingsRepository {
     private val config: Flow<ConfigData> =
         dataStoreService.getPreference(Configuration.DATASTORE_KEY_CONFIG).map {
-            it?.let { vckJsonSerializer.decodeFromString<ConfigData>(it) }
+            it?.let {
+                runCatching {
+                    vckJsonSerializer.decodeFromString<ConfigData>(it)
+                }.getOrNull()
+            }
                 ?: ConfigDataDefaults
         }
 
@@ -31,6 +35,7 @@ class WalletConfig(
         if (it.host == "https://wallet.a-sit.at/m6") "https://wallet.a-sit.at/m7" else it.host
     }
 
+    override val walletProviderHost = config.map { it.walletProviderHost }
     override val isConditionsAccepted: Flow<Boolean> = config.map { it.isConditionsAccepted }
     override val presentmentUseNegotiatedHandover: Flow<Boolean> = config.map { it.presentmentUseNegotiatedHandover }
     override val presentmentBleCentralClientModeEnabled: Flow<Boolean> = config.map { it.presentmentBleCentralClientModeEnabled }
@@ -44,6 +49,7 @@ class WalletConfig(
 
     override fun set(
         host: String?,
+        walletProviderHost: String?,
         isConditionsAccepted: Boolean?,
         presentmentUseNegotiatedHandover: Boolean?,
         presentmentBleCentralClientModeEnabled: Boolean?,
@@ -59,6 +65,7 @@ class WalletConfig(
         runBlocking {
             val newConfig = ConfigData(
                 host = host ?: this@WalletConfig.host.first(),
+                walletProviderHost = walletProviderHost ?: this@WalletConfig.walletProviderHost.first(),
                 isConditionsAccepted = isConditionsAccepted
                     ?: this@WalletConfig.isConditionsAccepted.first(),
                 presentmentUseNegotiatedHandover = presentmentUseNegotiatedHandover
@@ -124,6 +131,7 @@ class WalletConfig(
 @Serializable
 private data class ConfigData(
     val host: String,
+    val walletProviderHost: String,
     val isConditionsAccepted: Boolean = false,
     val presentmentUseNegotiatedHandover: Boolean = true,
     val presentmentBleCentralClientModeEnabled: Boolean = true,
@@ -138,5 +146,6 @@ private data class ConfigData(
 
 private val ConfigDataDefaults = ConfigData(
     host = "https://wallet.a-sit.at/m7",
+    walletProviderHost = "https://wallet.a-sit.at/provider",
     isConditionsAccepted = false,
 )
