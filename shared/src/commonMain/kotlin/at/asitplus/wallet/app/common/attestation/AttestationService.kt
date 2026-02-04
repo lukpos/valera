@@ -5,6 +5,7 @@ import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.signum.indispensable.josef.KeyAttestationJwt
 import at.asitplus.wallet.app.common.BuildContext
 import at.asitplus.wallet.app.common.data.SettingsRepository
+import at.asitplus.wallet.lib.oidvci.WalletService.LoadUnitAttestationInput
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.firstOrNull
@@ -40,10 +41,10 @@ class AttestationService(
     suspend fun getInstanceAttestationPop(nonce: String? = null) =
         instanceAttestationHelper.buildProofOfPossession(nonce)
 
-    suspend fun getUnitAttestation(ttl: Duration, type: String, payload: JsonWebToken) =
-        requestUnitAttestation(ttl).let { unitAttestation ->
+    suspend fun getUnitAttestation(input: LoadUnitAttestationInput) =
+        requestUnitAttestation(input.ttl).let { unitAttestation ->
             bufferedUnitAttestation.emit(null)
-            unitAttestationHelper.buildProofOfPossession(unitAttestation, type, payload)
+            unitAttestationHelper.buildProofOfPossession(unitAttestation, input.type, input.payload)
         }
 
 

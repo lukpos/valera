@@ -69,28 +69,13 @@ class ProvisioningService(
             cookiesStorage = cookieStorage,
             oAuth2Client = OAuth2Client(clientId = clientId, redirectUrl = redirectUrl),
             httpClientConfig = httpService.loggingConfig,
-            getInstanceAttestation = { attestationService.getInstanceAttestation()},
-            getInstanceAttestationPop = { attestationService.getInstanceAttestationPop()}
+            loadInstanceAttestation = { attestationService.getInstanceAttestation()},
+            loadInstanceAttestationPop = { attestationService.getInstanceAttestationPop()}
         ),
         oid4vciService = WalletService(
             clientId = clientId,
             keyMaterial = keyMaterial,
-            loadKeyAttestation = {
-                with(EphemeralKeyWithSelfSignedCert()) {
-                    catching {
-                        SignJwt<KeyAttestationJwt>(this, JwsHeaderCertOrJwk())(
-                            OpenIdConstants.KEY_ATTESTATION_JWT_TYPE,
-                            KeyAttestationJwt(
-                                issuedAt = System.now(),
-                                nonce = it.clientNonce,
-                                attestedKeys = setOf(keyMaterial.jsonWebKey)
-                            ),
-                            KeyAttestationJwt.serializer(),
-                        ).getOrThrow()
-                    }
-                }
-            },
-            getUnitAttestation = { ttl, type, payload -> attestationService.getUnitAttestation(ttl, type, payload) }
+            loadUnitAttestation = { input -> attestationService.getUnitAttestation(input) }
         )
     )
 
