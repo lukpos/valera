@@ -22,3 +22,4 @@ iosApp/Configuration/Signing.local.xcconfig
 *.cer
 shared/shared.podspec
 metrics/
+gradle/gradle-daemon-jvm.properties
