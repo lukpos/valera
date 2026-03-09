@@ -39,6 +39,7 @@ import at.asitplus.signum.indispensable.cosef.io.coseCompliantSerializer
 import at.asitplus.signum.indispensable.io.Base64UrlStrict
 import at.asitplus.wallet.app.android.dcapi.CustomRegistry
 import at.asitplus.wallet.app.android.dcapi.DCAPIInvocationData
+import at.asitplus.wallet.app.android.security.RequestTrustAnchorsInitializer
 import at.asitplus.wallet.app.common.BuildContext
 import at.asitplus.wallet.app.common.CapabilitiesService
 import at.asitplus.wallet.app.common.KeystoreService
@@ -58,7 +59,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromByteArray
 import kotlinx.serialization.encodeToByteArray
-import org.json.JSONObject
 import org.koin.core.module.dsl.scopedOf
 import org.koin.core.qualifier.named
 import org.koin.dsl.binds
@@ -76,6 +76,9 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 
 actual fun getPlatformName(): String = "Android"
+
+private var requestTrustAnchorsInitializationAttempted = false
+private val requestTrustAnchorsInitializer = RequestTrustAnchorsInitializer()
 
 
 // Modified from https://developer.android.com/jetpack/compose/designsystems/material3
@@ -96,9 +99,16 @@ fun MainView(
     buildContext: BuildContext,
     promptModel: PromptModel
 ) {
-    val platformAdapter = AndroidPlatformAdapter(LocalContext.current)
+    val context = LocalContext.current
+
+    if (!requestTrustAnchorsInitializationAttempted) {
+        requestTrustAnchorsInitializer.initialize(context)
+        requestTrustAnchorsInitializationAttempted = true
+    }
+
+    val platformAdapter = AndroidPlatformAdapter(context)
     val dataStoreService = RealDataStoreService(
-        getDataStore(LocalContext.current),
+        getDataStore(context),
         platformAdapter
     )
     val ks = KeystoreService(dataStoreService)
