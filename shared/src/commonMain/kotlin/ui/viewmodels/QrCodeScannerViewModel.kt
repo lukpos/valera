@@ -35,7 +35,7 @@ class QrCodeScannerViewModel(
     fun onQrScanned(link: String) = walletMain.scope.launch {
         isLoading = true
         Napier.d("onQrScanned: $link")
-        listOf(mode).plus(QrCodeScannerMode.entries.filter { it != mode }).forEach {
+        routeOrderForLink(mode, link).forEach {
             catchingUnwrapped {
                 startModeProcess(it, link)
             }.onSuccess {
@@ -45,6 +45,23 @@ class QrCodeScannerViewModel(
             }
         }
         onFailure(Throwable("Unable to parse: $link"))
+    }
+
+    private fun routeOrderForLink(mode: QrCodeScannerMode, link: String): List<QrCodeScannerMode> {
+        val normalized = link.trim().lowercase()
+        val preferredMode = when {
+            normalized.startsWith("mdoc-openid4vp://") ||
+                    normalized.startsWith("openid4vp://") ||
+                    normalized.startsWith("eudi-openid4vp://") -> QrCodeScannerMode.AUTHENTICATION
+
+            normalized.startsWith("openid-credential-offer://") ||
+                    normalized.contains("credential_offer=") ||
+                    normalized.contains("credential_offer_uri=") -> QrCodeScannerMode.PROVISIONING
+
+            else -> mode
+        }
+
+        return listOf(preferredMode).plus(QrCodeScannerMode.entries.filter { it != preferredMode })
     }
 
     suspend fun prepareCredential(link: String) = catchingUnwrapped {

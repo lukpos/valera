@@ -18,3 +18,4 @@ iosApp/iosApp.xcodeproj/*
 !iosApp/iosApp.xcodeproj/project.pbxproj
 shared/shared.podspec
 metrics/
+gradle/gradle-daemon-jvm.properties
