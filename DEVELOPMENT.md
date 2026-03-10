@@ -94,7 +94,7 @@ Recommended GitHub Actions secret names for iOS release signing:
 
 For request certificate validation in demo mode, Android loads trust anchors from:
 
-`shared/src/androidMain/assets/trust/request-trust-anchors.pem`
+`shared/src/androidMain/assets/trust/msca-root.pem`
 
 Notes:
 - This file is a local trust store input and may contain one or more root certificates.
