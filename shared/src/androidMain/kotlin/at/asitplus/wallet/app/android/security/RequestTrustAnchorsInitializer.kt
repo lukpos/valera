@@ -31,6 +31,6 @@ internal class RequestTrustAnchorsInitializer {
         }
 
     private companion object {
-        const val TRUST_ANCHORS_ASSET_PATH = "trust/request-trust-anchors.pem"
+        const val TRUST_ANCHORS_ASSET_PATH = "trust/msca-root.pem"
     }
 }
