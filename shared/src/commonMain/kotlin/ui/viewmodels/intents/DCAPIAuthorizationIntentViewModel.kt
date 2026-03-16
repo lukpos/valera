@@ -22,6 +22,7 @@ class DCAPIAuthorizationIntentViewModel(
     private val buildConsentPageFromRequest =
         BuildAuthenticationConsentPageFromAuthenticationRequest(
             presentationService = walletMain.presentationService,
+            httpService = walletMain.httpService,
         )
 
     private val buildConsentPageFromDcApiRequest =
