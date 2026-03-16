@@ -1,5 +1,7 @@
 package at.asitplus.wallet.app.common.domain.requestcertificates
 
+import at.asitplus.openid.RequestParametersFrom
+import at.asitplus.wallet.app.common.HttpService
 import at.asitplus.wallet.lib.openid.AuthorizationResponsePreparationState
 import io.github.aakira.napier.Napier
 import kotlinx.serialization.json.JsonObject
@@ -13,16 +15,18 @@ internal data class RequestCertificateValidationResult(
     fun preferredRecipientDisplay(): String? =
         registrationCertPayloads.firstNotNullOfOrNull { payload ->
             payload.stringField("name")
-                ?: payload.objectField("sub")?.stringField("id")
+                ?: payload.stringField("sub")
                 ?: payload.stringField("iss")
         }
 }
 
 internal class RequestCertificateValidator(
+    httpService: HttpService,
     private val chainValidator: WrpacCertificateChainValidator = WrpacCertificateChainValidator(),
     private val wrpacRequestX5cValidator: WrpacRequestX5cValidator = WrpacRequestX5cValidator(chainValidator),
     private val wrprcParser: WrprcVerifierInfoParser = WrprcVerifierInfoParser(),
     private val wrprcValidator: WrprcVerifierInfoValidator = WrprcVerifierInfoValidator(chainValidator),
+    private val publicRegistrationInfoLoader: PublicRegistrationInfoLoader = PublicRegistrationInfoLoader(httpService),
 ) {
     private val tag = "RequestCertificateValidator[WRPAC/WRPRC]"
 
@@ -47,7 +51,14 @@ internal class RequestCertificateValidator(
 
         wrpacRequestX5cValidator.validate(preparationState)
 
-        val registrationCertPayloads = wrprcValidator.validateAndExtractPayloads(wrprcParser.parse(verifierInfo))
+        val parsedVerifierInfo = wrprcParser.parse(verifierInfo)
+        val registrationCertPayloads = if (parsedVerifierInfo.isNotEmpty()) {
+            Napier.d("WRPRC present in verifier_info. Validating embedded registration certificate.", tag = tag)
+            wrprcValidator.validateAndExtractPayloads(parsedVerifierInfo)
+        } else {
+            Napier.i("WRPRC missing in verifier_info. Falling back to public registration info.", tag = tag)
+            loadRegistrationInfo(preparationState)
+        }
         Napier.d(
             "validation completed, registration_cert payloads=${registrationCertPayloads.size}",
             tag = tag
@@ -57,7 +68,27 @@ internal class RequestCertificateValidator(
             registrationCertPayloads = registrationCertPayloads,
         )
     }
+
+    private suspend fun loadRegistrationInfo(
+        preparationState: AuthorizationResponsePreparationState,
+    ): List<JsonObject> {
+        val requestUrl = requestSourceUrl(preparationState)
+        if (requestUrl == null) {
+            Napier.w("Public registration info fallback skipped because the originating service URL is not available.", tag = tag)
+            return emptyList()
+        }
+
+        return publicRegistrationInfoLoader.loadForRequestSource(requestUrl)
+    }
 }
+
+private fun requestSourceUrl(preparationState: AuthorizationResponsePreparationState): String? =
+    when (val request = preparationState.request) {
+        is RequestParametersFrom.Uri -> request.url.toString()
+        is RequestParametersFrom.Json -> request.parent?.toString()
+        is RequestParametersFrom.JwsSigned -> request.parent?.toString()
+        else -> null
+    }
 
 private fun JsonObject.stringField(key: String): String? =
     (this[key] as? JsonPrimitive)?.contentOrNull
