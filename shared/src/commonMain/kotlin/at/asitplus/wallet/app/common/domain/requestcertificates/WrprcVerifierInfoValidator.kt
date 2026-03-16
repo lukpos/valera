@@ -5,9 +5,6 @@ import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.signum.indispensable.pki.X509Certificate
 import at.asitplus.wallet.lib.jws.VerifyJwsSignature
 import io.github.aakira.napier.Napier
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.JsonObject
 
 internal class WrprcVerifierInfoValidator(
@@ -36,6 +33,10 @@ internal class WrprcVerifierInfoValidator(
             ) ?: return@forEach
 
             if (!validateSignature(entry.index, entry.jws, leafCertificate)) {
+                return@forEach
+            }
+
+            if (!validatePayload(entry.index, entry.jws.payload)) {
                 return@forEach
             }
 
@@ -93,12 +94,74 @@ internal class WrprcVerifierInfoValidator(
         }
     }
 
+    private fun validatePayload(index: Int, payload: JsonObject): Boolean {
+        val requiredStringClaims = listOf(
+            WrprcPayloadClaims.Subject,
+            WrprcPayloadClaims.Name,
+            WrprcPayloadClaims.RegistryUri,
+            WrprcPayloadClaims.IntendedUseId,
+            WrprcPayloadClaims.PrivacyPolicy,
+        )
+        requiredStringClaims.forEach { claim ->
+            if (payload.stringField(claim) == null) {
+                Napier.e(
+                    "verifier_info[$index] (registration_cert) is missing required payload claim '$claim'.",
+                    tag = tag
+                )
+                return false
+            }
+        }
+        if (!payload.hasNonEmptyArray(WrprcPayloadClaims.ServiceDescription)) {
+            Napier.e(
+                "verifier_info[$index] (registration_cert) is missing required payload claim " +
+                    "'${WrprcPayloadClaims.ServiceDescription}'.",
+                tag = tag
+            )
+            return false
+        }
+        if (!payload.hasNonEmptyArray(WrprcPayloadClaims.Credentials)) {
+            Napier.e(
+                "verifier_info[$index] (registration_cert) is missing required payload claim " +
+                    "'${WrprcPayloadClaims.Credentials}'.",
+                tag = tag
+            )
+            return false
+        }
+        val issuedAt = payload.longField(WrprcPayloadClaims.IssuedAt)
+        if (issuedAt == null) {
+            Napier.e(
+                "verifier_info[$index] (registration_cert) is missing required payload claim " +
+                    "'${WrprcPayloadClaims.IssuedAt}'.",
+                tag = tag
+            )
+            return false
+        }
+        val expiration = payload.longField(WrprcPayloadClaims.Expiration)
+        if (expiration == null) {
+            Napier.e(
+                "verifier_info[$index] (registration_cert) is missing required payload claim " +
+                    "'${WrprcPayloadClaims.Expiration}'.",
+                tag = tag
+            )
+            return false
+        }
+        if (expiration <= issuedAt) {
+            Napier.e(
+                "verifier_info[$index] (registration_cert) has invalid temporal claims: exp=$expiration <= iat=$issuedAt.",
+                tag = tag
+            )
+            return false
+        }
+        Napier.d("payload checks passed for entry[$index].", tag = tag)
+        return true
+    }
+
     private fun buildPayloadSummary(payload: JsonObject): String {
-        val name = (payload["name"] as? JsonPrimitive)?.contentOrNull
-        val issuer = (payload["iss"] as? JsonPrimitive)?.contentOrNull
-        val subjectId = runCatching { payload["sub"]?.jsonObject?.get("id") as? JsonPrimitive }
-            .getOrNull()
-            ?.contentOrNull
-        return "name=$name, iss=$issuer, sub.id=$subjectId"
+        val name = payload.stringField(WrprcPayloadClaims.Name)
+        val issuer = payload.stringField(WrprcPayloadClaims.Issuer)
+        val subjectId = payload.stringField(WrprcPayloadClaims.Subject)
+        val registryUri = payload.stringField(WrprcPayloadClaims.RegistryUri)
+        val intendedUseId = payload.stringField(WrprcPayloadClaims.IntendedUseId)
+        return "name=$name, iss=$issuer, sub=$subjectId, registry_uri=$registryUri, intended_use_id=$intendedUseId"
     }
 }
