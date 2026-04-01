@@ -1,9 +1,12 @@
 package at.asitplus.wallet.app.common.domain.requestcertificates
 
+import at.asitplus.signum.indispensable.josef.JwsSigned
 import at.asitplus.wallet.app.common.HttpService
+import at.asitplus.wallet.lib.data.vckJsonSerializer
+import at.asitplus.wallet.lib.jws.VerifyJwsSignature
 import io.github.aakira.napier.Napier
-import io.ktor.client.call.body
 import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.URLBuilder
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -26,34 +29,35 @@ internal class StaticRegistrarBaseUrlResolver(
 internal class PublicRegistrationInfoLoader(
     private val httpService: HttpService,
     private val registrarBaseUrlResolver: RegistrarBaseUrlResolver = StaticRegistrarBaseUrlResolver(),
+    private val chainValidator: WrpacCertificateChainValidator = WrpacCertificateChainValidator(),
 ) {
     private val tag = "PublicRegistrationInfoLoader[WRPRC]"
 
     suspend fun loadForRequestSource(
         requestUrl: String,
+        wrpIdentifier: String? = null,
     ): List<JsonObject> {
         val registrarBaseUrl = registrarBaseUrlResolver.resolveForRequestSource(requestUrl)
         if (registrarBaseUrl == null) {
             Napier.w("Could not resolve registrar base URL for request source $requestUrl.", tag = tag)
             return emptyList()
         }
+        if (wrpIdentifier.isNullOrBlank()) {
+            Napier.w("Public registration info lookup needs a WRP identifier once WRPRC is absent.", tag = tag)
+            return emptyList()
+        }
+
         Napier.i(
             "WRPRC missing. Looking up public registration info via registrar $registrarBaseUrl for request source $requestUrl",
             tag = tag
         )
 
-        val wrps = runCatching {
-            httpService.buildHttpClient().use { httpClient ->
-                httpClient.get("$registrarBaseUrl/api/public/wrps").body<List<RegistrarPublicWrpDto>>()
-            }
-        }.getOrElse {
-            Napier.e("Could not load public WRP list from registrar $registrarBaseUrl.", it, tag = tag)
-            return emptyList()
-        }
-
-        val resolvedService = resolveServiceRegistration(requestUrl, wrps)
+        val resolvedService = resolveServiceRegistration(requestUrl, registrarBaseUrl, wrpIdentifier)
         if (resolvedService == null) {
-            Napier.w("No matching public WRP service registration found for request source $requestUrl.", tag = tag)
+            Napier.w(
+                "No matching public WRP service registration found for request source $requestUrl and wrpIdentifier=$wrpIdentifier.",
+                tag = tag
+            )
             return emptyList()
         }
 
@@ -61,37 +65,42 @@ internal class PublicRegistrationInfoLoader(
             "Loading public registration info for wrp_id=${resolvedService.wrpIdentifier}, service_uri=${resolvedService.serviceUri}",
             tag = tag
         )
-        val registrationInfoUrl = URLBuilder("$registrarBaseUrl/api/public/wrps/${resolvedService.wrpIdentifier}/registration-info")
+        val registrationInfoUrl = URLBuilder("$registrarBaseUrl/wrp/${resolvedService.wrpIdentifier}/registration-info")
             .apply {
                 parameters.append("serviceUri", resolvedService.serviceUri)
             }
             .buildString()
 
         val registrationInfo = runCatching {
-            httpService.buildHttpClient().use { httpClient ->
-                httpClient.get(registrationInfoUrl).body<RegistrarRegistrationInfoDto>()
-            }
+            loadSignedJsonObject(registrationInfoUrl)
         }.getOrElse {
             Napier.e("Could not load registration info from $registrationInfoUrl.", it, tag = tag)
             return emptyList()
         }
 
+        val registrationInfoDto = runCatching {
+            vckJsonSerializer.decodeFromJsonElement<RegistrarRegistrationInfoDto>(registrationInfo)
+        }.getOrElse {
+            Napier.e("Could not decode registration info from $registrationInfoUrl.", it, tag = tag)
+            return emptyList()
+        }
+
         Napier.i(
-            "Public registration info loaded for wrp_id=${registrationInfo.wrpIdentifier}, service_uri=${registrationInfo.serviceUri}, intendedUses=${registrationInfo.intendedUses.size}",
+            "Public registration info loaded for wrp_id=${registrationInfoDto.wrpIdentifier}, service_uri=${registrationInfoDto.serviceUri}, intendedUses=${registrationInfoDto.intendedUses.size}",
             tag = tag
         )
-        Napier.d("Registration info payload: $registrationInfo", tag = tag)
+        Napier.d("Registration info payload: $registrationInfoDto", tag = tag)
 
         return listOf(
             buildJsonObject {
-                put("iss", JsonPrimitive(registrationInfo.wrpIdentifier))
-                put("sub", JsonPrimitive(registrationInfo.wrpIdentifier))
-                registrationInfo.displayName?.takeIf { it.isNotBlank() }?.let { put("name", JsonPrimitive(it)) }
+                put("iss", JsonPrimitive(registrationInfoDto.wrpIdentifier))
+                put("sub", JsonPrimitive(registrationInfoDto.wrpIdentifier))
+                registrationInfoDto.displayName?.takeIf { it.isNotBlank() }?.let { put("name", JsonPrimitive(it)) }
                 put("registry_uri", JsonPrimitive(registrarBaseUrl.trimEnd('/')))
                 put(
                     "srv_description",
                     buildJsonArray {
-                        registrationInfo.displayName
+                        registrationInfoDto.displayName
                             ?.takeIf { it.isNotBlank() }
                             ?.let { displayName ->
                                 add(
@@ -107,18 +116,19 @@ internal class PublicRegistrationInfoLoader(
                             }
                     }
                 )
-                registrationInfo.intendedUses.firstNotNullOfOrNull { it.intendedUseIdentifier }
+                registrationInfoDto.intendedUses.firstNotNullOfOrNull { it.intendedUseIdentifier }
                     ?.let { put("intended_use_id", JsonPrimitive(it)) }
-                registrationInfo.intendedUses.firstNotNullOfOrNull { it.privacyPolicy.singlePolicyUriOrNull() }
+                registrationInfoDto.intendedUses.firstNotNullOfOrNull { it.privacyPolicy.singlePolicyUriOrNull() }
                     ?.let { put("privacy_policy", JsonPrimitive(it)) }
-                put("credentials", registrationInfo.firstCredentialArrayOrEmpty())
+                put("credentials", registrationInfoDto.firstCredentialArrayOrEmpty())
             }
         )
     }
 
-    private fun resolveServiceRegistration(
+    private suspend fun resolveServiceRegistration(
         requestUrl: String,
-        wrps: List<RegistrarPublicWrpDto>,
+        registrarBaseUrl: String,
+        wrpIdentifier: String,
     ): ResolvedServiceRegistration? {
         val requestOrigin = runCatching {
             val url = URLBuilder(requestUrl)
@@ -126,28 +136,53 @@ internal class PublicRegistrationInfoLoader(
             "${url.protocol.name}://${url.host}$portSuffix"
         }.getOrNull()
 
-        val candidates = wrps.flatMap { wrp ->
-            wrp.services.map { service ->
-                ResolvedServiceRegistration(
-                    wrpIdentifier = wrp.wrpIdentifier,
-                    serviceUri = service.serviceUri,
-                )
+        val candidateUris = buildList {
+            add(requestUrl)
+            requestOrigin?.let { origin ->
+                if (origin != requestUrl) {
+                    add(origin)
+                }
             }
         }
 
-        return candidates.firstOrNull { it.serviceUri == requestUrl }
-            ?: candidates.firstOrNull { requestUrl.startsWith(it.serviceUri) }
-            ?: requestOrigin?.let { origin ->
-                candidates.firstOrNull { it.serviceUri == origin || origin.startsWith(it.serviceUri) }
+        candidateUris.forEach { serviceUri ->
+            val serviceUrl = URLBuilder("$registrarBaseUrl/wrp/$wrpIdentifier/service")
+                .apply { parameters.append("serviceUri", serviceUri) }
+                .buildString()
+            val exists = runCatching { loadSignedJsonObject(serviceUrl) }.getOrNull() != null
+            if (exists) {
+                return ResolvedServiceRegistration(
+                    wrpIdentifier = wrpIdentifier,
+                    serviceUri = serviceUri,
+                )
             }
+        }
+        return null
+    }
+
+    private suspend fun loadSignedJsonObject(url: String): JsonObject {
+        val body = httpService.buildHttpClient().use { httpClient ->
+            httpClient.get(url).bodyAsText()
+        }
+        val jws = JwsSigned.deserialize<JsonElement>(
+            JsonElement.serializer(),
+            body,
+            vckJsonSerializer,
+        ).getOrThrow()
+        val leafCertificate = chainValidator.validateMandatoryChain(
+            jws.header.certificateChain,
+            source = "registrar public API x5c"
+        ) ?: error("Registrar public API JWS is missing a valid x5c chain.")
+        VerifyJwsSignature().invoke(jws, leafCertificate.decodedPublicKey.getOrThrow()).getOrThrow()
+        return jws.payload as? JsonObject ?: error("Registrar public API JWS payload is not a JSON object.")
     }
 
     private fun RegistrarRegistrationInfoDto.firstCredentialArrayOrEmpty(): JsonArray =
         intendedUses.firstNotNullOfOrNull { intendedUse ->
-            when (val credential = intendedUse.credential) {
+            when (val credentials = intendedUse.credentials) {
                 null -> null
-                is JsonArray -> credential.takeIf { it.isNotEmpty() }
-                else -> buildJsonArray { add(credential) }
+                is JsonArray -> credentials.takeIf { it.isNotEmpty() }
+                else -> buildJsonArray { add(credentials) }
             }
         } ?: buildJsonArray { }
 

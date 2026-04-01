@@ -5,24 +5,21 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /**
- * DTOs for the registrar's public RP and registration-info endpoints.
+ * DTOs for the registrar's signed public /wrp endpoints.
  *
  * These types are local to Valera for now. If the same public registrar contract
  * is consumed by multiple clients, they should move into a shared library later.
  */
 @Serializable
-internal data class RegistrarPublicWrpDto(
-    @SerialName("wrp_identifier")
-    val wrpIdentifier: String,
-
-    @SerialName("services")
-    val services: List<RegistrarPublicServiceDto> = emptyList(),
-)
-
-@Serializable
 internal data class RegistrarPublicServiceDto(
     @SerialName("serviceUri")
     val serviceUri: String,
+
+    @SerialName("displayName")
+    val displayName: String? = null,
+
+    @SerialName("intendedUse")
+    val intendedUse: List<RegistrarIntendedUseDto> = emptyList(),
 )
 
 @Serializable
@@ -51,8 +48,8 @@ internal data class RegistrarIntendedUseDto(
     @SerialName("privacyPolicy")
     val privacyPolicy: JsonElement? = null,
 
-    @SerialName("credential")
-    val credential: JsonElement? = null,
+    @SerialName("credentials")
+    val credentials: JsonElement? = null,
 
     @SerialName("createdAt")
     val createdAt: String? = null,
@@ -60,4 +57,3 @@ internal data class RegistrarIntendedUseDto(
     @SerialName("revokedAt")
     val revokedAt: String? = null,
 )
-
