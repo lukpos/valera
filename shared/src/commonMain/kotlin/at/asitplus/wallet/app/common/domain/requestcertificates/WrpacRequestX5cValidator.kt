@@ -13,9 +13,9 @@ internal class WrpacRequestX5cValidator(
 ) {
     private val tag = "WrpacRequestX5cValidator[WRPAC]"
 
-    fun validate(preparationState: AuthorizationResponsePreparationState) {
+    fun validate(preparationState: AuthorizationResponsePreparationState): String? {
         val params = preparationState.request.parameters
-        when (val request = preparationState.request) {
+        return when (val request = preparationState.request) {
             is RequestParametersFrom.DcApiSigned<*> -> {
                 Napier.d(
                     "validating mandatory request x5c, " +
@@ -27,6 +27,7 @@ internal class WrpacRequestX5cValidator(
                     request.jwsSigned.header.certificateChain,
                     source = "WRPAC request x5c"
                 )
+                null
             }
 
             is RequestParametersFrom.JwsSigned<*> -> {
@@ -38,10 +39,11 @@ internal class WrpacRequestX5cValidator(
                 request.jwsSigned.header.certificateChain?.let {
                     debugX509HashBinding(params.clientId, it)
                     chainValidator.validateOptionalChain(it, source = "WRPAC request x5c")
+                    null
                 }
             }
 
-            else -> Unit
+            else -> null
         }
     }
 

@@ -5,9 +5,6 @@ import at.asitplus.wallet.app.common.HttpService
 import at.asitplus.wallet.lib.openid.AuthorizationResponsePreparationState
 import io.github.aakira.napier.Napier
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
 
 internal data class RequestCertificateValidationResult(
     val registrationCertPayloads: List<JsonObject> = emptyList(),
@@ -49,7 +46,10 @@ internal class RequestCertificateValidator(
             )
         }
 
-        wrpacRequestX5cValidator.validate(preparationState)
+        val wrpIdentifier = wrpacRequestX5cValidator.validate(preparationState)
+        if (wrpIdentifier != null) {
+            Napier.d("resolved wrpIdentifier from WRPAC request x5c: $wrpIdentifier", tag = tag)
+        }
 
         val parsedVerifierInfo = wrprcParser.parse(verifierInfo)
         val registrationCertPayloads = if (parsedVerifierInfo.isNotEmpty()) {
@@ -57,7 +57,7 @@ internal class RequestCertificateValidator(
             wrprcValidator.validateAndExtractPayloads(parsedVerifierInfo)
         } else {
             Napier.i("WRPRC missing in verifier_info. Falling back to public registration info.", tag = tag)
-            loadRegistrationInfo(preparationState)
+            loadRegistrationInfo(preparationState, wrpIdentifier)
         }
         Napier.d(
             "validation completed, registration_cert payloads=${registrationCertPayloads.size}",
@@ -71,6 +71,7 @@ internal class RequestCertificateValidator(
 
     private suspend fun loadRegistrationInfo(
         preparationState: AuthorizationResponsePreparationState,
+        wrpIdentifier: String?,
     ): List<JsonObject> {
         val requestUrl = requestSourceUrl(preparationState)
         if (requestUrl == null) {
@@ -78,7 +79,10 @@ internal class RequestCertificateValidator(
             return emptyList()
         }
 
-        return publicRegistrationInfoLoader.loadForRequestSource(requestUrl)
+        return publicRegistrationInfoLoader.loadForRequestSource(
+            requestUrl = requestUrl,
+            wrpIdentifier = wrpIdentifier,
+        )
     }
 }
 
@@ -89,9 +93,3 @@ private fun requestSourceUrl(preparationState: AuthorizationResponsePreparationS
         is RequestParametersFrom.JwsSigned -> request.parent?.toString()
         else -> null
     }
-
-private fun JsonObject.stringField(key: String): String? =
-    (this[key] as? JsonPrimitive)?.contentOrNull
-
-private fun JsonObject.objectField(key: String): JsonObject? =
-    runCatching { this[key]?.jsonObject }.getOrNull()
