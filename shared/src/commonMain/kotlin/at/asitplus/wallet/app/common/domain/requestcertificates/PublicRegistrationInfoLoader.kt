@@ -18,13 +18,14 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 
 internal interface RegistrarBaseUrlResolver {
-    fun resolveForRequestSource(requestUrl: String): String?
+    fun resolveForRequestSource(requestUrl: String): String
 }
 
 internal class StaticRegistrarBaseUrlResolver(
-    private val registrarBaseUrl: String = "http://10.0.2.2:5000",
+    // default base url for local testing
+    private val registrarBaseUrl: String = "http://10.0.2.2:5000"
 ) : RegistrarBaseUrlResolver {
-    override fun resolveForRequestSource(requestUrl: String): String? = registrarBaseUrl
+    override fun resolveForRequestSource(requestUrl: String): String = registrarBaseUrl
 }
 
 internal class PublicRegistrationInfoLoader(
@@ -32,44 +33,25 @@ internal class PublicRegistrationInfoLoader(
     private val registrarBaseUrlResolver: RegistrarBaseUrlResolver = StaticRegistrarBaseUrlResolver(),
     private val chainValidator: WrpacCertificateChainValidator = WrpacCertificateChainValidator(),
 ) {
-    private val tag = "PublicRegistrationInfoLoader[WRPRC]"
+    private val tag = "[WRPRC] PublicRegistrationInfoLoader"
 
-    suspend fun loadForRequestSource(
-        requestUrl: String,
-        wrpIdentifier: String? = null,
-    ): List<JsonObject> {
+    suspend fun loadForRequestSource(requestUrl: String, wrpIdentifier: String? = null): List<JsonObject> {
         val registrarBaseUrl = registrarBaseUrlResolver.resolveForRequestSource(requestUrl)
-        if (registrarBaseUrl == null) {
-            Napier.w("Could not resolve registrar base URL for request source $requestUrl.", tag = tag)
-            return emptyList()
-        }
         if (wrpIdentifier.isNullOrBlank()) {
-            Napier.w("Public registration info lookup needs a WRP identifier once WRPRC is absent.", tag = tag)
+            Napier.e("Public registration info lookup needs a WRP identifier once WRPRC is absent.", tag = tag)
             return emptyList()
         }
 
-        Napier.i(
-            "WRPRC missing. Looking up public registration info via registrar $registrarBaseUrl for request source $requestUrl",
-            tag = tag
-        )
-
+        Napier.i("WRPRC missing. Looking up public registration info via registrar $registrarBaseUrl for request source $requestUrl", tag = tag)
         val resolvedService = resolveServiceRegistration(requestUrl, registrarBaseUrl, wrpIdentifier)
         if (resolvedService == null) {
-            Napier.w(
-                "No matching public WRP service registration found for request source $requestUrl and wrpIdentifier=$wrpIdentifier.",
-                tag = tag
-            )
+            Napier.e("No matching public WRP service registration found for request source $requestUrl and wrpIdentifier=$wrpIdentifier.", tag = tag)
             return emptyList()
         }
 
-        Napier.i(
-            "Loading public registration info for wrp_id=${resolvedService.wrpIdentifier}, service_uri=${resolvedService.serviceUri}",
-            tag = tag
-        )
+        Napier.i("Loading public registration info for wrp_id=${resolvedService.wrpIdentifier}, service_uri=${resolvedService.serviceUri}", tag = tag)
         val registrationInfoUrl = URLBuilder("$registrarBaseUrl/wrp/${resolvedService.wrpIdentifier}/registration-info")
-            .apply {
-                parameters.append("serviceUri", resolvedService.serviceUri)
-            }
+            .apply { parameters.append("serviceUri", resolvedService.serviceUri) }
             .buildString()
 
         val registrationInfo = runCatching {
@@ -87,7 +69,9 @@ internal class PublicRegistrationInfoLoader(
         }
 
         Napier.i(
-            "Public registration info loaded for wrp_id=${registrationInfoDto.wrpIdentifier}, service_uri=${registrationInfoDto.serviceUri}, intendedUses=${registrationInfoDto.intendedUses.size}",
+            "Public registration info loaded for wrp_id=${registrationInfoDto.wrpIdentifier}, " +
+                    "service_uri=${registrationInfoDto.serviceUri}, " +
+                    "intendedUses=${registrationInfoDto.intendedUses.size}",
             tag = tag
         )
         Napier.d("Registration info payload: $registrationInfoDto", tag = tag)
@@ -129,7 +113,7 @@ internal class PublicRegistrationInfoLoader(
     private suspend fun resolveServiceRegistration(
         requestUrl: String,
         registrarBaseUrl: String,
-        wrpIdentifier: String,
+        wrpIdentifier: String
     ): ResolvedServiceRegistration? {
         val requestOrigin = runCatching {
             val url = URLBuilder(requestUrl)
@@ -152,10 +136,7 @@ internal class PublicRegistrationInfoLoader(
                 .buildString()
             val exists = runCatching { loadSignedJsonObject(serviceUrl) }.getOrNull() != null
             if (exists) {
-                return ResolvedServiceRegistration(
-                    wrpIdentifier = wrpIdentifier,
-                    serviceUri = serviceUri,
-                )
+                return ResolvedServiceRegistration(wrpIdentifier, serviceUri)
             }
         }
         return null
@@ -168,7 +149,7 @@ internal class PublicRegistrationInfoLoader(
         val jws = JwsSigned.deserialize<JsonElement>(
             JsonElement.serializer(),
             body,
-            vckJsonSerializer,
+            vckJsonSerializer
         ).getOrThrow()
         val leafCertificate = chainValidator.validateMandatoryChain(
             jws.header.certificateChain,
@@ -197,8 +178,5 @@ internal class PublicRegistrationInfoLoader(
         else -> null
     }
 
-    private data class ResolvedServiceRegistration(
-        val wrpIdentifier: String,
-        val serviceUri: String,
-    )
+    private data class ResolvedServiceRegistration(val wrpIdentifier: String, val serviceUri: String)
 }
