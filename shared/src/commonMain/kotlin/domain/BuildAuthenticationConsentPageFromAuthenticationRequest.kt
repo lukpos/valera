@@ -13,23 +13,24 @@ class BuildAuthenticationConsentPageFromAuthenticationRequest(
     val presentationService: PresentationService,
     httpService: HttpService,
 ) {
+    private val tag = "RequestCert.BuildConsent"
     private val requestCertificateValidator = RequestCertificateValidator(httpService)
 
     suspend operator fun invoke(
         request: DCAPIWalletRequest.OpenId4Vp,
     ): KmmResult<AuthenticationViewRoute> = catching {
-        Napier.d("BuildAuthenticationConsentPageFromAuthenticationRequest: request=$request")
+        Napier.d("Preparing authentication consent page from DC API request.", tag = tag)
         val preparationState = presentationService.startAuthorizationResponsePreparation(request)
-            .onFailure { Napier.e("Failure", it) }
+            .onFailure { Napier.e("Authorization response preparation failed.", it, tag = tag) }
             .getOrThrow()
         val validationResult = requestCertificateValidator.validate(preparationState)
         val recipientDisplay = validationResult.preferredRecipientDisplay()
             ?: preparationState.request.parameters.clientId
             ?: ""
         Napier.d(
-            "BuildAuthenticationConsentPageFromAuthenticationRequest: " +
-                    "registrationCertPayloads=${validationResult.registrationCertPayloads.size}, " +
-                    "recipientDisplay='$recipientDisplay'"
+            "Consent page prepared. registrationCertPayloads=${validationResult.registrationCertPayloads.size}, " +
+                "recipientDisplay='$recipientDisplay'",
+            tag = tag
         )
 
         AuthenticationViewRoute(

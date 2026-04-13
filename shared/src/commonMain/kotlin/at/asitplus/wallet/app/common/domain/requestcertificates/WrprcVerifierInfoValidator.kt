@@ -10,7 +10,7 @@ import kotlinx.serialization.json.JsonObject
 internal class WrprcVerifierInfoValidator(
     private val chainValidator: WrpacCertificateChainValidator,
 ) {
-    private val tag = "[WRPRC] WrprcVerifierInfoValidator"
+    private val tag = "RequestCert.WRPRC"
 
     suspend fun validateAndExtractPayloads(entries: List<ParsedWrprcVerifierInfo>): List<JsonObject> {
         val payloads = mutableListOf<JsonObject>()
@@ -19,8 +19,8 @@ internal class WrprcVerifierInfoValidator(
         entries.forEach { entry ->
             Napier.d(
                 "entry[${entry.index}] start, " +
-                        "typ='${entry.jws.header.type}', alg='${entry.jws.header.algorithm.identifier}', " +
-                        "x5cCount=${entry.jws.header.certificateChain?.size ?: 0}",
+                    "typ='${entry.jws.header.type}', alg='${entry.jws.header.algorithm.identifier}', " +
+                    "x5cCount=${entry.jws.header.certificateChain?.size ?: 0}",
                 tag = tag
             )
             if (!validateHeader(entry.index, entry.jws)) return@forEach
@@ -33,7 +33,7 @@ internal class WrprcVerifierInfoValidator(
 
             Napier.d(
                 "entry[${entry.index}] accepted, payloadSummary=" +
-                        buildPayloadSummary(entry.jws.payload),
+                    buildPayloadSummary(entry.jws.payload),
                 tag = tag
             )
             payloads += entry.jws.payload

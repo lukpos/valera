@@ -33,7 +33,7 @@ internal class PublicRegistrationInfoLoader(
     private val registrarBaseUrlResolver: RegistrarBaseUrlResolver = StaticRegistrarBaseUrlResolver(),
     private val chainValidator: WrpacCertificateChainValidator = WrpacCertificateChainValidator(),
 ) {
-    private val tag = "[WRPRC] PublicRegistrationInfoLoader"
+    private val tag = "RequestCert.Registrar"
 
     suspend fun loadForRequestSource(requestUrl: String, wrpIdentifier: String? = null): List<JsonObject> {
         val registrarBaseUrl = registrarBaseUrlResolver.resolveForRequestSource(requestUrl)
@@ -42,14 +42,18 @@ internal class PublicRegistrationInfoLoader(
             return emptyList()
         }
 
-        Napier.i("WRPRC missing. Looking up public registration info via registrar $registrarBaseUrl for request source $requestUrl", tag = tag)
+        Napier.i("WRPRC missing: loading public registration info via registrar.", tag = tag)
         val resolvedService = resolveServiceRegistration(requestUrl, registrarBaseUrl, wrpIdentifier)
         if (resolvedService == null) {
-            Napier.e("No matching public WRP service registration found for request source $requestUrl and wrpIdentifier=$wrpIdentifier.", tag = tag)
+            Napier.e("No matching public WRP service registration found.", tag = tag)
             return emptyList()
         }
 
-        Napier.i("Loading public registration info for wrp_id=${resolvedService.wrpIdentifier}, service_uri=${resolvedService.serviceUri}", tag = tag)
+        Napier.i(
+            "Loading public registration info for wrp_id=${resolvedService.wrpIdentifier}, " +
+                "service_uri=${resolvedService.serviceUri}",
+            tag = tag
+        )
         val registrationInfoUrl = URLBuilder("$registrarBaseUrl/wrp/${resolvedService.wrpIdentifier}/registration-info")
             .apply { parameters.append("serviceUri", resolvedService.serviceUri) }
             .buildString()
@@ -70,8 +74,8 @@ internal class PublicRegistrationInfoLoader(
 
         Napier.i(
             "Public registration info loaded for wrp_id=${registrationInfoDto.wrpIdentifier}, " +
-                    "service_uri=${registrationInfoDto.serviceUri}, " +
-                    "intendedUses=${registrationInfoDto.intendedUses.size}",
+                "service_uri=${registrationInfoDto.serviceUri}, " +
+                "intendedUses=${registrationInfoDto.intendedUses.size}",
             tag = tag
         )
         Napier.d("Registration info payload: $registrationInfoDto", tag = tag)

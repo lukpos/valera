@@ -7,6 +7,7 @@ private val certificatePemPattern =
     Regex("-----BEGIN CERTIFICATE-----[\\s\\S]*?-----END CERTIFICATE-----")
 
 internal object RequestCertificateTrustAnchors {
+    private const val TAG = "RequestCert.TrustAnchors"
     private var trustedRoots: List<X509Certificate> = emptyList()
 
     fun replaceFromPem(pemContent: String): Boolean {
@@ -15,18 +16,18 @@ internal object RequestCertificateTrustAnchors {
                 .map { it.value.trim() }
                 .mapIndexedNotNull { index, certPem ->
                     X509Certificate.decodeFromPem(certPem).getOrElse {
-                        Napier.e("Could not parse trusted root certificate at index $index", it)
+                        Napier.e("Could not parse trusted root certificate at index $index", it, tag = TAG)
                         return@mapIndexedNotNull null
                     }
                 }
                 .toList()
         }.getOrElse {
-            Napier.e("Could not parse trusted root PEM content.", it)
+            Napier.e("Could not parse trusted root PEM content.", it, tag = TAG)
             emptyList()
         }
 
         if (parsed.isEmpty()) {
-            Napier.e("No certificates found in trusted root PEM content.")
+            Napier.e("No certificates found in trusted root PEM content.", tag = TAG)
             return false
         }
 

@@ -39,6 +39,28 @@ Notes:
 - This file is a local trust store input and may contain one or more root certificates.
 - Trust anchors are used for chain anchoring only and are not expected in transported `x5c` values.
 
+## Request Certificate Validation (current state)
+
+Valera validates request certificates during authentication-request preparation.
+
+Current flow:
+- `RequestCertificateValidator` validates the request `x5c` as WRPAC input when present.
+- `WrprcVerifierInfoParser` extracts `registration_cert` entries from `verifier_info`.
+- `WrprcVerifierInfoValidator` validates WRPRC header, signature, chain, and required payload claims.
+- If no WRPRC is present, `PublicRegistrationInfoLoader` loads signed public `registration-info` from the registrar.
+- The resulting payloads are only used to derive UI-facing recipient display data for the consent page.
+
+Current trust inputs:
+- request `x5c` from the authentication request
+- WRPRC `x5c` from `verifier_info`
+- local trust anchors loaded from `shared/src/androidMain/assets/trust/msca-root.pem`
+
+Current registrar fallback inputs:
+- public `GET /wrp/{wrpIdentifier}/service?serviceUri=...`
+- public `GET /wrp/{wrpIdentifier}/registration-info?serviceUri=...`
+
+This is demo validation logic. It is intentionally kept local to Valera and does not yet model broader lifecycle or revocation handling.
+
 ## Deployments
 
 We use [fastlane](https://fastlane.tools/) to build the iOS App. The CI pipeline and secrets on this GitHub repository are already set up correctly. No need to do it again!

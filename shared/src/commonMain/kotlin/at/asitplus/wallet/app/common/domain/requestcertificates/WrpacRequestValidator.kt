@@ -18,7 +18,7 @@ internal data class WrpacRequestValidationResult(
 internal class WrpacRequestValidator(
     private val chainValidator: WrpacCertificateChainValidator = WrpacCertificateChainValidator()
 ) {
-    private val tag = "[WRPAC] WrpacRequestValidator"
+    private val tag = "RequestCert.WRPAC"
 
     fun validate(preparationState: AuthorizationResponsePreparationState): WrpacRequestValidationResult {
         val params = preparationState.request.parameters
@@ -43,7 +43,7 @@ internal class WrpacRequestValidator(
                 )
                 val chain = request.jwsSigned.header.certificateChain
                 if (chain.isNullOrEmpty()) {
-                    Napier.d("optional request x5c missing; skipping WRPAC certificate validation.", tag = tag)
+                    Napier.d("Optional request x5c missing; skipping WRPAC certificate validation.", tag = tag)
                     WrpacRequestValidationResult(isValid = true)
                 } else {
                     val clientIdHashMatched = validateX509HashBinding(params.clientId, chain)
@@ -59,9 +59,9 @@ internal class WrpacRequestValidator(
     private fun reportResult(chainValid: Boolean, clientIdHashMatched: Boolean?): WrpacRequestValidationResult {
         val isValid = chainValid && clientIdHashMatched != false
         if (isValid) {
-            Napier.i("WRPAC request validation passed", tag = tag)
+            Napier.i("WRPAC request validation passed.", tag = tag)
         } else {
-            Napier.e("WRPAC request validation failed", tag = tag)
+            Napier.e("WRPAC request validation failed.", tag = tag)
         }
         return WrpacRequestValidationResult(
             isValid = isValid,
@@ -72,15 +72,15 @@ internal class WrpacRequestValidator(
 
     private fun validateX509HashBinding(clientId: String?, chain: CertificateChain?): Boolean? {
         if (chain.isNullOrEmpty()) {
-            Napier.d("x509_hash validation skipped, request x5c missing.", tag = tag)
+            Napier.d("x509_hash validation skipped; request x5c missing.", tag = tag)
             return null
         }
         if (clientId.isNullOrBlank()) {
-            Napier.d("x509_hash validation skipped, client_id missing.", tag = tag)
+            Napier.d("x509_hash validation skipped; client_id missing.", tag = tag)
             return null
         }
         if (!clientId.startsWith("x509_hash:")) {
-            Napier.d("x509_hash validation skipped, client_id is '$clientId'.", tag = tag)
+            Napier.d("x509_hash validation skipped; client_id is '$clientId'.", tag = tag)
             return null
         }
 

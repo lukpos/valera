@@ -17,6 +17,7 @@ import io.matthewnelson.encoding.core.Encoder.Companion.encodeToString
 import kotlin.time.Clock
 
 internal class WrpacCertificateChainValidator {
+    private val baseTag = "RequestCert.Chain"
     private val authorityKeyIdentifierOid = ObjectIdentifier("2.5.29.35")
     private val subjectKeyIdentifierOid = ObjectIdentifier("2.5.29.14")
 
@@ -88,9 +89,9 @@ internal class WrpacCertificateChainValidator {
             if (!isCertificateSignedBy(child, issuer)) {
                 Napier.e(
                     "$source[$idx] is not signed by $source[${idx + 1}]. " +
-                            "child=${shortFingerprint(child)}, issuer=${shortFingerprint(issuer)}, " +
-                            "childAki=${shortHex(extractAuthorityKeyIdentifier(child))}, " +
-                            "issuerSki=${shortHex(extractSubjectKeyIdentifier(issuer))}",
+                        "child=${shortFingerprint(child)}, issuer=${shortFingerprint(issuer)}, " +
+                        "childAki=${shortHex(extractAuthorityKeyIdentifier(child))}, " +
+                        "issuerSki=${shortHex(extractSubjectKeyIdentifier(issuer))}",
                     tag = tag
                 )
                 return false
@@ -116,7 +117,7 @@ internal class WrpacCertificateChainValidator {
             if (sameCertificate || signedByTrustedRoot) {
                 Napier.d(
                     "$source: trust anchor matched trusted root (${shortFingerprint(trustedRoot)}), " +
-                            "mode=${if (sameCertificate) "exact" else "signed"}.",
+                        "mode=${if (sameCertificate) "exact" else "signed"}.",
                     tag = tag
                 )
             }
@@ -126,7 +127,7 @@ internal class WrpacCertificateChainValidator {
         if (!anchored) {
             Napier.e(
                 "$source is not anchored to a configured trusted root certificate. " +
-                        "x5cTop=${shortFingerprint(chainTop)}",
+                    "x5cTop=${shortFingerprint(chainTop)}",
                 tag = tag
             )
             return false
@@ -203,8 +204,9 @@ internal class WrpacCertificateChainValidator {
         } ?: "n/a"
 
     private fun tagFor(source: String): String = when {
-        source.startsWith("WRPRC") -> "WrpacCertificateChainValidator[WRPRC]"
-        source.startsWith("WRPAC") -> "WrpacCertificateChainValidator[WRPAC]"
-        else -> "WrpacCertificateChainValidator"
+        source.startsWith("WRPRC") -> "$baseTag.WRPRC"
+        source.startsWith("WRPAC") -> "$baseTag.WRPAC"
+        source.startsWith("registrar") -> "$baseTag.Registrar"
+        else -> baseTag
     }
 }

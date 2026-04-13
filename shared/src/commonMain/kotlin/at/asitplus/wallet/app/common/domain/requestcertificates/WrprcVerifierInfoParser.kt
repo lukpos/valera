@@ -12,7 +12,7 @@ internal data class ParsedWrprcVerifierInfo(
 )
 
 internal class WrprcVerifierInfoParser {
-    private val tag = "WrprcVerifierInfoParser[WRPRC]"
+    private val tag = "RequestCert.WRPRC.Parser"
 
     fun parse(verifierInfo: List<VerifierInfo>?): List<ParsedWrprcVerifierInfo> {
         val parsed = mutableListOf<ParsedWrprcVerifierInfo>()
@@ -22,13 +22,13 @@ internal class WrprcVerifierInfoParser {
         entries.forEachIndexed { index, entry ->
             Napier.d(
                 "entry[$index] format='${entry.format}', " +
-                        "dataLength=${entry.data.length}, credentialIds=${entry.credentialIds.size}",
+                    "dataLength=${entry.data.length}, credentialIds=${entry.credentialIds.size}",
                 tag = tag
             )
             if (!entry.format.equals(REGISTRATION_CERT_FORMAT, ignoreCase = true)) {
                 Napier.w(
                     "skipping verifier_info[$index], " +
-                            "expected '$REGISTRATION_CERT_FORMAT' but got '${entry.format}'.",
+                        "expected '$REGISTRATION_CERT_FORMAT' but got '${entry.format}'.",
                     tag = tag
                 )
                 return@forEachIndexed
@@ -45,8 +45,8 @@ internal class WrprcVerifierInfoParser {
 
             Napier.d(
                 "parsed verifier_info[$index] JWS, " +
-                        "typ='${jws.header.type}', alg='${jws.header.algorithm.identifier}', " +
-                        "x5cCount=${jws.header.certificateChain?.size ?: 0}",
+                    "typ='${jws.header.type}', alg='${jws.header.algorithm.identifier}', " +
+                    "x5cCount=${jws.header.certificateChain?.size ?: 0}",
                 tag = tag
             )
             parsed += ParsedWrprcVerifierInfo(index = index, jws = jws)
