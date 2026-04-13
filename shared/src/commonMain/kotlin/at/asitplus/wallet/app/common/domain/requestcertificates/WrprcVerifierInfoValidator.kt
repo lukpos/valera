@@ -10,7 +10,7 @@ import kotlinx.serialization.json.JsonObject
 internal class WrprcVerifierInfoValidator(
     private val chainValidator: WrpacCertificateChainValidator,
 ) {
-    private val tag = "WrprcVerifierInfoValidator[WRPRC]"
+    private val tag = "[WRPRC] WrprcVerifierInfoValidator"
 
     suspend fun validateAndExtractPayloads(entries: List<ParsedWrprcVerifierInfo>): List<JsonObject> {
         val payloads = mutableListOf<JsonObject>()
@@ -23,22 +23,13 @@ internal class WrprcVerifierInfoValidator(
                         "x5cCount=${entry.jws.header.certificateChain?.size ?: 0}",
                 tag = tag
             )
-            if (!validateHeader(entry.index, entry.jws)) {
-                return@forEach
-            }
-
+            if (!validateHeader(entry.index, entry.jws)) return@forEach
             val leafCertificate = chainValidator.validateMandatoryChain(
                 entry.jws.header.certificateChain,
                 source = "WRPRC verifier_info[${entry.index}] (registration_cert) x5c"
             ) ?: return@forEach
-
-            if (!validateSignature(entry.index, entry.jws, leafCertificate)) {
-                return@forEach
-            }
-
-            if (!validatePayload(entry.index, entry.jws.payload)) {
-                return@forEach
-            }
+            if (!validateSignature(entry.index, entry.jws, leafCertificate)) return@forEach
+            if (!validatePayload(entry.index, entry.jws.payload)) return@forEach
 
             Napier.d(
                 "entry[${entry.index}] accepted, payloadSummary=" +
@@ -76,7 +67,7 @@ internal class WrprcVerifierInfoValidator(
     private suspend fun validateSignature(
         index: Int,
         jws: JwsSigned<JsonObject>,
-        leafCertificate: X509Certificate,
+        leafCertificate: X509Certificate
     ): Boolean {
         val jwsAlgorithm = jws.header.algorithm
         if (jwsAlgorithm !is JwsAlgorithm.Signature) {
@@ -100,7 +91,7 @@ internal class WrprcVerifierInfoValidator(
             WrprcPayloadClaims.Name,
             WrprcPayloadClaims.RegistryUri,
             WrprcPayloadClaims.IntendedUseId,
-            WrprcPayloadClaims.PrivacyPolicy,
+            WrprcPayloadClaims.PrivacyPolicy
         )
         requiredStringClaims.forEach { claim ->
             if (payload.stringField(claim) == null) {
